@@ -126,6 +126,9 @@ module.exports = function (source) {
 
   const uniqueImports = R.uniqBy(R.prop('name'), imports);
 
+  if (uniqueImports.length)
+    console.log('> [purs-css-modules-webpack-plugin/purs-loader]', psModuleName, this.resourcePath, uniqueImports);
+
   const psModuleDir = path.dirname(this.resourcePath);
   const psModuleBase = path.basename(this.resourcePath, path.extname(this.resourcePath));
   const psCSSModuleDir = path.join(psModuleDir, psModuleBase);
@@ -133,7 +136,7 @@ module.exports = function (source) {
   const promise = Promise.all(uniqueImports.map(({ name: cssModuleName, parent: cssModuleParentName }) => {
     const ownCSSModule = cssModuleParentName === psModuleName;
     const cssModuleFilename = ownCSSModule
-      ? path.join(psModuleDir, `${psModuleBase}.css`)
+      ? path.join(this.rootContext, psModuleDir, `${psModuleBase}.css`)
       : resolveFilename({
           base: this.resourcePath,
           from: psModuleName,
@@ -154,13 +157,17 @@ module.exports = function (source) {
             return reject(unknownCSSModuleLocalsErr(relCSSModuleFilename));
           }
 
-          if (!fs.existsSync(psCSSModuleDir)) {
-            fs.mkdirSync(psCSSModuleDir);
+          const cssModuleDir = path.dirname(cssModuleFilename);
+          const cssModuleBase = path.basename(cssModuleFilename, path.extname(cssModuleFilename));
+          const cssModuleOut = path.join(cssModuleDir, cssModuleBase);
+
+          if (!fs.existsSync(cssModuleOut)) {
+            fs.mkdirSync(cssModuleOut);
           }
-          fs.writeFileSync(path.join(psCSSModuleDir, ".purs-css-module"), "");
-          fs.writeFileSync(path.join(psCSSModuleDir, "CSS.js"),
-            mkForeignCSSModule(path.relative(psCSSModuleDir, cssModuleFilename)));
-          fs.writeFileSync(path.join(psCSSModuleDir, "CSS.purs"),
+          fs.writeFileSync(path.join(cssModuleOut, ".purs-css-module"), "");
+          fs.writeFileSync(path.join(cssModuleOut, "CSS.js"),
+            mkForeignCSSModule(path.relative(cssModuleOut, cssModuleFilename)));
+          fs.writeFileSync(path.join(cssModuleOut, "CSS.purs"),
             mkCSSModule(cssModuleName, Object.keys(locals)));
 
           resolve(ownCSSModule);

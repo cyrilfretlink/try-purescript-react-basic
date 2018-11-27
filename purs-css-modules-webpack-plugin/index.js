@@ -69,17 +69,12 @@ const matchLocation = /at (.+\.purs) line (\d+), column (\d+) - line (\d+), colu
 const matchCSSModuleName = /Module (((?:\w+\.)*\w+)\.CSS) was not found/;
 
 const matchSingleError = /Error found:/;
-const matchMultipleErrors = /(Error \d+ of \d+:.+)(?=Error \d+ of \d+:)|(Error (\d+) of \3:.+)/sg;
+const pscErrorsSeparator = /\n(?=Error)/;
 const splitPscErrors = pscMessage => {
-  if (matchSingleError.test(pscMessage)) {
-    return [pscMessage];
-  }
-  const errors = [];
-  let matched;
-  while (matched = matchMultipleErrors.exec(pscMessage)) {
-    errors.push(matched[1] || matched[2]);
-  }
-  return errors;
+
+  debugger;
+
+  return pscMessage.split(pscErrorsSeparator);
 };
 
 const repeat = (value, times) => {
@@ -101,13 +96,10 @@ const diffModuleNames = (from, target, parts) => {
     : parts.concat(repeat("..", from.length), target);
 };
 
-const resolveFilename = ({ base, from, target }) => {
+const resolveFilename = ({ base, from, target, ext = ".purs" }) => {
   const parts = diffModuleNames(from.split("."), target.split("."), []);
-  return path.resolve(base, `${path.join(...parts)}.purs`);
+  return path.resolve(base, path.join(...parts) + ext);
 };
-
-const withExtname = (ext, filename) =>
-  path.basename(filename, path.extname(filename)) + ext;
 
 const isPscMessage = message =>
   [matchModuleName, matchLocation].every(re => re.test(message));
@@ -154,6 +146,9 @@ module.exports = class PursCSSModulesPlugin {
     });
 
     compiler.hooks.shouldEmit.tap(name, compilation => {
+
+      debugger;
+
       if (compilation.errors.length > 0) {
         const knownResources = new Set(compilation.modules.map(module => module.resource));
         this.missingCSSModuleErrors = R.compose(
@@ -166,22 +161,25 @@ module.exports = class PursCSSModulesPlugin {
           )),
           R.map(pscMessage => {
             const [, filename] = matchLocation.exec(pscMessage);
-            const dir = path.dirname(filename);
-            const base = path.basename(filename, path.extname(filename));
+            const psModuleDir = path.dirname(filename);
+            const psModuleBase = path.basename(filename, path.extname(filename));
             const [, moduleName] = matchModuleName.exec(pscMessage);
             const [, cssModuleName, cssModuleParentName] = matchCSSModuleName.exec(pscMessage);
             const cssModuleFilename = cssModuleParentName === moduleName
-              ? path.join(dir, `${base}.css`)
-              : withExtname(".css", resolveFilename({
-                  base: filename,
+              ? path.join(compiler.context, psModuleDir, `${psModuleBase}.css`)
+              : resolveFilename({
+                  base: path.join(compiler.context, filename),
                   from: moduleName,
-                  target: cssModuleParentName
-                }));
+                  target: cssModuleParentName,
+                  ext: ".css"
+                });
+            const cssModuleDir = path.dirname(cssModuleFilename);
+            const cssModuleBase = path.basename(cssModuleFilename, path.extname(cssModuleFilename));
             return {
               filename,
               moduleName,
               cssModule: {
-                out: path.join(dir, base),
+                out: path.join(cssModuleDir, cssModuleBase),
                 name: cssModuleName,
                 filename: cssModuleFilename,
                 exists: fs.existsSync(cssModuleFilename)
@@ -193,8 +191,7 @@ module.exports = class PursCSSModulesPlugin {
           R.filter(R.is(String))
         )(compilation.errors);
 
-        return !this.missingCSSModuleErrors.some(err =>
-          err.cssModule.parentName === err.moduleName && err.cssModule.exists);
+        return !this.missingCSSModuleErrors.some(err => err.cssModule.exists);
       } else {
         this.missingCSSModuleErrors = [];
       }
@@ -209,11 +206,16 @@ module.exports = class PursCSSModulesPlugin {
     };
 
     compiler.hooks.done.tapPromise(name, reportErrors(async ({ compilation }) => {
+
+      debugger;
+
       if (this.missingCSSModuleErrors.length) {
+
+        console.log('> [purs-css-modules-webpack-plugin]', this.missingCSSModuleErrors.map(err => err.moduleName));
+
         await Promise.all(this.missingCSSModuleErrors.map(err => {
           if (err.cssModule.exists) {
-            const absoluteCSSModulePath = path.join(compiler.context, err.cssModule.filename);
-            const entry = webpack.SingleEntryPlugin.createDependency(absoluteCSSModulePath);
+            const entry = webpack.SingleEntryPlugin.createDependency(err.cssModule.filename);
             const factory = compilation.dependencyFactories.get(entry.constructor);
             return new Promise((resolve, reject) => {
               factory.create({ dependencies: [entry] }, (_err0, module) => {
@@ -224,7 +226,7 @@ module.exports = class PursCSSModulesPlugin {
                   compilation,
                   compilation.inputFileSystem
                 );
-                loaderContext.loadModule(absoluteCSSModulePath, (_err1, source, map, module) => {
+                loaderContext.loadModule(err.cssModule.filename, (_err1, source, map, module) => {
                   if (_err1) return reject(_err1);
 
                   const dep = module.dependencies.find(dep => dep.module &&
@@ -233,10 +235,10 @@ module.exports = class PursCSSModulesPlugin {
                   if (dep && dep.module.error) return reject(dep.module.error);
 
                   try {
-                    const locals = loaderContext.pursCSSModulesLocals.get(absoluteCSSModulePath);
+                    const locals = loaderContext.pursCSSModulesLocals.get(err.cssModule.filename);
 
                     if (!locals) {
-                      const relCSSModuleFilename = path.relative(loaderContext.rootContext, cssModuleFilename);
+                      const relCSSModuleFilename = path.relative(loaderContext.rootContext, err.cssModule.filename);
                       return reject(unknownCSSModuleLocalsErr(relCSSModuleFilename));
                     }
 
