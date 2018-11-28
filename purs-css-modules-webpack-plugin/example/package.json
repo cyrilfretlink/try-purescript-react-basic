@@ -1,0 +1,29 @@
+// TODO: npm install --save-dev ..
+{
+  "name": "purs-css-modules-webpack-plugin-example",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Example using `purs-css-modules-webpack-plugin`",
+  "scripts": {
+    "postinstall": "psc-package install",
+    "start": "webpack-dev-server --mode development",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fretlink/purs-css-modules-webpack-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fretlink/purs-css-modules-webpack-plugin/issues"
+  },
+  "homepage": "https://github.com/fretlink/purs-css-modules-webpack-plugin/example",
+  "devDependencies": {
+    "html-webpack-plugin": "^3.2.0",
+    "psc-package-bin-simple": "^3.0.0",
+    "purescript": "^0.12.1",
+    "style-loader": "^0.23.1",
+    "webpack": "^4.26.1",
+    "webpack-cli": "^3.1.2",
+    "webpack-dev-server": "^3.1.10"
+  }
+}

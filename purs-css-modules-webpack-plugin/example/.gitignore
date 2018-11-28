@@ -1,0 +1,4 @@
+node_modules/
+.psc-package/
+output/
+dist/
