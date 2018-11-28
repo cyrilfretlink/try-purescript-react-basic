@@ -30,29 +30,14 @@ const mkClassNamesRow = classes => {
   return "\n" + indent(4, `( ${classes.map(k => `"${k}" :: String`).join("\n, ")} )`);
 };
 
-const mkClassNamesProxies = classes =>
-  classes.map(k => `  ${k} = SProxy :: SProxy "${k}"`).join("\n");
-
 const mkCSSModule = (name, classes) => dedent(`
   module ${name} where
 
-  import Prelude
-  import Prim.Row as Row
   import Effect (Effect)
-  import Record as Record
-  import Data.Symbol (class IsSymbol, SProxy${classes.length ? "(..)" : ""})
 
   type ClassNames =${mkClassNamesRow(classes)}
 
   foreign import importCSSModule :: Effect (Record ClassNames)
-
-  withCSSModule :: ∀ k rest.
-    IsSymbol k =>
-    Row.Cons k String rest ClassNames =>
-    Effect (SProxy k -> String)
-  withCSSModule = flip Record.get <$> importCSSModule
-
-${mkClassNamesProxies(classes)}
 `).trimLeft();
 
 const missingCSSFileErr = info => new Error(`
