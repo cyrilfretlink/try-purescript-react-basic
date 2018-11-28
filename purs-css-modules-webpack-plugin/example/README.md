@@ -2,21 +2,21 @@
 
 Clone the repository:
 
-```bash
+```sh
 $ git clone git@github.com:fretlink/purs-css-modules-webpack-plugin.git
 ```
 
 Install this example dependencies:
 
-```bash
+```sh
 $ cd purs-css-modules-webpack-plugin/example
 $ npm install
 ```
 
 Launch the development server:
 
-```bash
+```sh
 $ npm start
 ```
 
-And _voila_! Visit http://localhost:8080/ with your favorite browser.
+And _voila_! Now you can visit http://localhost:8080/ with your favorite browser.
