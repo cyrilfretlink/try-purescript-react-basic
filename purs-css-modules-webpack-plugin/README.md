@@ -111,12 +111,12 @@ import Effect (Effect)
 type ClassNames =
   ( "title" :: String )
 
-foreign import importCSSModule :: Effect { | ClassNames }
+foreign import importCSSModule :: Effect (Record ClassNames)
 ```
 
 This module exports a few bindings:
 
-  * `ClassNames` is a row describing the stylesheet local class names.
+  * `ClassNames` is a [row](https://github.com/purescript/documentation/blob/master/language/Types.md#row-polymorphism) describing the stylesheet local class names.
   * `importCSSModule` yields a mapping of the stylesheet local class names to their corresponding compiled class names.
 
 ### Let’s use the `title` class declared in `Components/App.css` to style our `h1`. Import the necessary bindings:
