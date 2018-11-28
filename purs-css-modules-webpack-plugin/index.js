@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const webpack = require('webpack');
-const MemoryFs = require('memory-fs');
 const R = require('ramda');
 
 const dedent = str => {
