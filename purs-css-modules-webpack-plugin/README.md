@@ -1,10 +1,10 @@
-# PureScript CSS Modules Webpack Plugin
+# CSS Modules for PureScript
 
 [PureScript](https://github.com/purescript/purescript) is great, [CSS Modules](https://github.com/css-modules/css-modules) are great. Why not both?
 
 ![Why don’t we have both?](https://i.kym-cdn.com/photos/images/newsfeed/000/538/731/0fc.gif)
 
-This [webpack](https://github/webpack/webpack) plugin lets you import stylesheets from PureScript in a type safe way with all the benefits of CSS Modules and CSS preprocessors :sparkles:
+This [webpack](https://github/webpack/webpack) plugin lets you import CSS Modules from PureScript :sparkles:
 
 ## Installation
 
@@ -17,16 +17,14 @@ $ npm install --save-dev fretlink/purs-css-modules-webpack-plugin#latest
 Import the plugin in your webpack configuration file:
 
 ```diff
---- webpack.config.js
-+++ webpack.config.js
+# webpack.config.js
 +const PursCSSModulesPlugin = require("purs-css-modules-webpack-plugin");
 ```
 
 Then add it to your plugins list:
 
 ```diff
---- webpack.config.js
-+++ webpack.config.js
+# webpack.config.js
    plugins: [
 +    new PursCSSModulesPlugin()
    ]
@@ -35,8 +33,7 @@ Then add it to your plugins list:
 And configure some loaders for `.purs` and `.css` files:
 
 ```diff
---- webpack.config.js
-+++ webpack.config.js
+# webpack.config.js
    module: {
      rules: [
 +      {
@@ -56,13 +53,13 @@ And configure some loaders for `.purs` and `.css` files:
    }
 ```
 
-This plugin uses [purs-loader](https://github.com/fretlink/purs-loader) and [css-loader](https://github.com/webpack-contrib/css-loader) under the hood. If you need to configure them you can call `PursCSSModulesPlugin.pursLoader` and `PursCSSModulesPlugin.cssLoader` with an object of options accepted by the underlying loaders.
+This plugin uses [purs-loader](https://github.com/fretlink/purs-loader) and [css-loader](https://github.com/webpack-contrib/css-loader) under the hood.
+
+If you need to configure them you can call `PursCSSModulesPlugin.pursLoader` and `PursCSSModulesPlugin.cssLoader` with an object of options accepted by the underlying loaders.
 
 ## Usage
 
-:information_source: This plugin isn’t tied to any specific UI library but it’s easier to show how to use it with one, so here’s a walkthrough with [React.Basic](https://github.com/lumihq/purescript-react-basic):
-
-> You can consult the whole example [here](/example).
+Here’s a walkthrough with [React.Basic](https://github.com/lumihq/purescript-react-basic). You can consult the whole example [here](/example).
 
 ### Let’s start by creating a React component:
 
@@ -94,8 +91,7 @@ app = unit # makeStateless component \_ ->
 ### This plugin will create a PureScript module named after the module of your component with a `.CSS` suffix. Import it to make the plugin generate the module on the fly:
 
 ```diff
---- i/src/Components/App.purs
-+++ w/src/Components/App.purs
+# src/Components/App.purs
  module Components.App where
 
  import Prelude
@@ -123,13 +119,10 @@ This module exports a few bindings:
   * `ClassNames` is a row describing the stylesheet local class names.
   * `importCSSModule` yields a mapping of the stylesheet local class names to their corresponding compiled class names.
 
-Because the record yielded by `importCSSModule` has a _very_ precise type you can safely lookup your stylesheets local class names :sparkles:
-
 ### Let’s use the `title` class declared in `Components/App.css` to style our `h1`. Import the necessary bindings:
 
 ```diff
---- src/Components/App.purs
-+++ src/Components/App.purs
+# src/Components/App.purs
 -import Components.App.CSS
 +import Components.App.CSS (importCSSModule)
 ```
@@ -148,8 +141,7 @@ app = importCSSModule <#> \{ title } ->
 You’ll also need to import `Effect`:
 
 ```diff
---- src/Components/App.purs
-+++ src/Components/App.purs
+# src/Components/App.purs
  module Components.App where
 
  import Prelude
