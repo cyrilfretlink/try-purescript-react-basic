@@ -14,4 +14,4 @@ app :: Effect JSX
 app = importCSSModule <#> \{ title } ->
   unit # makeStateless component \_ ->
     DOM.h1 { className: title
-           , children: [DOM.text "Hello world"] }
+           , children: [DOM.text "Hello world!"] }
