@@ -52,14 +52,9 @@ const matchModuleName = /in module ((?:\w+\.)*\w+)/;
 const matchLocation = /at (.+\.purs) line (\d+), column (\d+) - line (\d+), column (\d+)/;
 const matchCSSModuleName = /Module (((?:\w+\.)*\w+)\.CSS) was not found/;
 
-const matchSingleError = /Error found:/;
 const pscErrorsSeparator = /\n(?=Error)/;
-const splitPscErrors = pscMessage => {
-
-  debugger;
-
-  return pscMessage.split(pscErrorsSeparator);
-};
+const splitPscErrors = pscMessage =>
+  pscMessage.split(pscErrorsSeparator);
 
 const repeat = (value, times) => {
   if (times <= 0) return [];
@@ -82,7 +77,10 @@ const diffModuleNames = (from, target, parts) => {
 
 const resolveFilename = ({ base, from, target, ext = ".purs" }) => {
   const parts = diffModuleNames(from.split("."), target.split("."), []);
-  return path.resolve(base, path.join(...parts) + ext);
+  return parts.length
+    ? path.resolve(base, path.join(...parts) + ext)
+    : path.join(path.dirname(base),
+        path.basename(base, path.extname(base)) + ext);
 };
 
 const isPscMessage = message =>

@@ -37,23 +37,11 @@ const mkClassNamesProxies = classes =>
 const mkCSSModule = (name, classes) => dedent(`
   module ${name} where
 
-  import Prelude
-  import Prim.Row as Row
   import Effect (Effect)
-  import Record as Record
-  import Data.Symbol (class IsSymbol, SProxy${classes.length ? "(..)" : ""})
 
   type ClassNames =${mkClassNamesRow(classes)}
 
   foreign import importCSSModule :: Effect (Record ClassNames)
-
-  withCSSModule :: ∀ k rest.
-    IsSymbol k =>
-    Row.Cons k String rest ClassNames =>
-    Effect (SProxy k -> String)
-  withCSSModule = flip Record.get <$> importCSSModule
-
-${mkClassNamesProxies(classes)}
 `).trimLeft();
 
 const missingPluginErr = new Error(`
@@ -91,7 +79,10 @@ const diffModuleNames = (from, target, parts) => {
 
 const resolveFilename = ({ base, from, target, ext = ".purs" }) => {
   const parts = diffModuleNames(from.split("."), target.split("."), []);
-  return path.resolve(base, path.join(...parts) + ext);
+  return parts.length
+    ? path.resolve(base, path.join(...parts) + ext)
+    : path.join(path.dirname(base),
+        path.basename(base, path.extname(base)) + ext);
 };
 
 module.exports = function (source) {
@@ -136,7 +127,7 @@ module.exports = function (source) {
   const promise = Promise.all(uniqueImports.map(({ name: cssModuleName, parent: cssModuleParentName }) => {
     const ownCSSModule = cssModuleParentName === psModuleName;
     const cssModuleFilename = ownCSSModule
-      ? path.join(this.rootContext, psModuleDir, `${psModuleBase}.css`)
+      ? path.join(psModuleDir, `${psModuleBase}.css`)
       : resolveFilename({
           base: this.resourcePath,
           from: psModuleName,
