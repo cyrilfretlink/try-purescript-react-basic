@@ -8,7 +8,7 @@ This [webpack](https://github/webpack/webpack) plugin lets you import CSS Module
 
 ## Installation
 
-```bash
+```sh
 $ npm install --save-dev fretlink/purs-css-modules-webpack-plugin#latest
 ```
 
