@@ -1,4 +1,3 @@
-// import { main } from "./Main.purs";
+import { main } from "./Main.purs";
 
-// main();
-console.log("xoxo")
+main();
