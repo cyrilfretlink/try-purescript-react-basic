@@ -19,12 +19,12 @@ const dedent = R.compose(lines => {
   return lines.map(line => line.slice(start)).join("\n");
 }, R.split("\n"));
 
-const mkForeignCSSModule = filename =>
+const mkForeignCssModule = filename =>
   banner.map(R.concat("// ")).join("\n") + dedent(`
 
   "use strict";
 
-  exports.importCSSModule = function () {
+  exports.importCssModule = function () {
     return require(\"${filename}\");
   };
 `);
@@ -38,7 +38,7 @@ const mkClassNamesRow = (depth, classes) => {
   return "\n" + indent(depth + 2, row);
 };
 
-const mkCSSModule = (name, classes) =>
+const mkCssModule = (name, classes) =>
   banner.map(R.concat("-- | ")).join("\n") + dedent(`
 
   module ${name} where
@@ -47,7 +47,7 @@ const mkCSSModule = (name, classes) =>
 
   type ClassNames =${mkClassNamesRow(2, classes)}
 
-  foreign import importCSSModule :: Effect (Record ClassNames)
+  foreign import importCssModule :: Effect (Record ClassNames)
 `);
 
 const access = filename =>
@@ -57,17 +57,14 @@ const access = filename =>
       else resolve();
     })
   });
-exports.access = access;
-
 const exists = filename =>
   access(filename).then(() => true, () => false);
-exports.exists = exists;
 
-const unknownCSSModuleLocalsErr = filename => new Error(`
+const unknownCssModuleLocalsErr = filename => new Error(`
 Couldn’t extract local class names of ./${filename}
 `.trimLeft());
 
-exports.loadCSSModule = (loaderContext, filename) =>
+const loadCssModule = (loaderContext, filename) =>
   new Promise((resolve, reject) => {
     loaderContext.loadModule(filename, (err, source, map, module) => {
       if (err) return reject(err);
@@ -77,13 +74,15 @@ exports.loadCSSModule = (loaderContext, filename) =>
 
       if (dep && dep.module.error) return reject(dep.module.error);
 
-      const locals = loaderContext.pursCSSModulesLocals.get(filename);
+      const locals = loaderContext.pursCssModulesLocals.get(filename);
       if (locals) return resolve(locals);
 
-      reject(unknownCSSModuleLocalsErr(
+      reject(unknownCssModuleLocalsErr(
         path.relative(loaderContext.rootContext, filename)));
     });
   });
+
+const DOT_PURS_CSS_MODULE = ".purs-css-module";
 
 const mkdir = dirname =>
   new Promise((resolve, reject) => {
@@ -99,14 +98,37 @@ const writeFile = (filename, content) =>
       else resolve();
     });
   });
-exports.writeCSSModule = async ({ root, locals, styleSheetPath, namespace }) => {
-  await access(root).catch(() => mkdir(root));
+const cssModuleConflictErr = ({ root, filename }) => {
+  const dotCssModulePath = path.join(root, DOT_PURS_CSS_MODULE);
+  const dependencies = [dotCssModulePath, filename];
+  return Object.assign(new Error(dedent(`
+    Couldn’t overwrite ${filename} because ${root} isn’t a CSS module root
 
-  await writeFile(path.join(root, ".purs-css-module"), "");
-  await writeFile(path.join(root, "CSS.js"),
-    mkForeignCSSModule(path.relative(root, styleSheetPath)));
-  await writeFile(path.join(root, "CSS.purs"),
-    mkCSSModule(`${namespace}.CSS`, Object.keys(locals)));
+      Create a file ${dotCssModulePath} to turn ${root} into a CSS module root and overwrite ${filename} or rename ${filename}.
+  `.trimLeft())), { dependencies });
+};
+const writeCssModule = async ({ root, locals, styleSheetPath, namespace }) => {
+  const dotCssModulePath = path.join(root, DOT_PURS_CSS_MODULE);
+  const foreignCssModulePath = path.join(root, "CSS.js");
+  const cssModulePath = path.join(root, "CSS.purs");
+
+  if (await exists(root)) {
+    if (!(await exists(dotCssModulePath))) {
+      for (const filename of [foreignCssModulePath, cssModulePath]) {
+        if (exists(filename)) throw cssModuleConflictErr({ filename, root });
+      }
+    }
+  } else {
+    await mkdir(root);
+  }
+
+  await Promise.all([
+    writeFile(dotCssModulePath, ""),
+    writeFile(foreignCssModulePath,
+      mkForeignCssModule(path.relative(root, styleSheetPath)));
+    writeFile(cssModulePath,
+      mkCssModule(`${namespace}.CSS`, Object.keys(locals)))
+  ]);
 };
 
 const rm = filename =>
@@ -123,19 +145,43 @@ const rmdir = filename =>
       else resolve();
     });
   });
-exports.deleteCSSModule = async root => {
-  if (await exists(path.join(root, ".purs-css-module"))) {
-    for (const filename of [".purs-css-module", "CSS.js", "CSS.purs"]) {
-      await rm(path.join(root, filename));
-    }
+const deleteCssModule = async root => {
+  if (await exists(path.join(root, DOT_PURS_CSS_MODULE))) {
+    await Promise.all([".purs-css-module", "CSS.js", "CSS.purs"]
+      .map(filename => rm(path.join(root, filename))));
     await rmdir(root).catch(notEmptyErr => {});
+  }
+};
+
+const missingStyleSheetErr = ({ styleSheetPath, fromModuleName }) => new Error(`
+Missing ./${styleSheetPath} imported by ${fromModuleName}
+`.trimLeft());
+
+exports.reifyCssModule = async (loaderContext, desc, onWarning) => {
+  const { styleSheetPath } = desc.cssModule;
+  if (await exists(styleSheetPath)) {
+    try {
+      await writeCssModule(Object.assign({
+        locals: await loadCssModule(
+          loaderContext, styleSheetPath)
+      }, desc.cssModule));
+    } catch (reason) {
+      for (const dep of reason.dependencies || []) {
+        loaderContext.addDependency(dep);
+      }
+      throw reason;
+    }
+  } else {
+    onWarning(missingStyleSheetErr({
+      fromModuleName: desc.name,
+      styleSheetPath: path.relative(
+        loaderContext.rootContext, styleSheetPath)
+    }));
+
+    await deleteCssModule(desc.cssModule.root);
   }
 };
 
 exports.missingPluginErr = new Error(`
 This loader must be used with its corresponding plugin
-`.trimLeft());
-
-exports.missingStyleSheetErr = info => new Error(`
-Missing ./${info.styleSheetPath} imported by ${info.fromModuleName}
 `.trimLeft());

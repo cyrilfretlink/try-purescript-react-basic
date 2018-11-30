@@ -63,42 +63,34 @@ module.exports = function (source, ...rest) {
   if (!pursModuleName) return pursLoader.call(this, source, ...rest);
 
   const imports = extractCssModulesImports(source);
-  Promise.all(imports.map(async ({ namespace }) => {
+  Promise.all(imports.map(({ namespace }) => {
     const styleSheetPath = findCssModuleStyleSheet({
       baseModulePath: this.resourcePath,
       baseModuleName: pursModuleName,
       namespace
     })
-    const cssModuleRoot = findCssModuleRoot(styleSheetPath);
 
     this.addDependency(styleSheetPath);
 
-    if (await utils.exists(styleSheetPath)) {
-      await utils.writeCssModule({
-        root: cssModuleRoot,
-        locals: await utils.loadCssModule(this, styleSheetPath),
-        stylesheetPath,
+    return utils.reifyCssModule(this, {
+      name: pursModuleName,
+      cssModule: {
+        root: findCssModuleRoot(styleSheetPath),
+        styleSheetPath,
         namespace
-      });
-    } else {
-      this.emitWarning(utils.missingStyleSheetErr({
-        fromModuleName: pursModuleName,
-        styleSheetPath: path.relative(this.rootContext, styleSheetPath)
-      }));
-
-      await utils.deleteCssModule(cssModuleRoot);
-    }
+      }
+    }, this.emitWarning);
   })).then(() => {
     const context = Object.preventExtensions(Object.assign(Object.create(this), {
-      describePscError: (error, info) => {
+      describePscError: (error, desc) => {
         const matchMissingCssModuleName = /Module ((?:\w+\.)*\w+)\.CSS was not found/;
         const [, namespace] = matchMissingCssModuleName.exec(error) || [];
 
         if (!namespace) return {};
 
         const styleSheetPath = findCssModuleStyleSheet({
-          baseModulePath: info.filename,
-          baseModuleName: info.name
+          baseModulePath: desc.filename,
+          baseModuleName: desc.name
           namespace
         });
 

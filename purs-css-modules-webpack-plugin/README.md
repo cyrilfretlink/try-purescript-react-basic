@@ -18,7 +18,7 @@ Import the plugin in your webpack configuration file:
 ```diff
 # webpack.config.js
 
-+const PursCSSModulesPlugin = require("purs-css-modules-webpack-plugin");
++const PursCssModulesPlugin = require("purs-css-modules-webpack-plugin");
 ```
 
 Then add it to your plugins list:
@@ -26,7 +26,7 @@ Then add it to your plugins list:
 # webpack.config.js
 
    plugins: [
-+    new PursCSSModulesPlugin()
++    new PursCssModulesPlugin()
    ]
 ```
 
@@ -39,14 +39,14 @@ And configure some loaders for `.purs` and `.css` files:
 +      {
 +        test: /\.purs$/,
 +        exclude: /node_modules/,
-+        use: PursCSSModulesPlugin.pursLoader()
++        use: PursCssModulesPlugin.pursLoader()
 +      },
 +      {
 +        test: /\.css$/,
 +        exclude: /node_modules/,
 +        use: [
 +          "style-loader",
-+          PursCSSModulesPlugin.cssLoader()
++          PursCssModulesPlugin.cssLoader()
 +        ]
 +      }
      ]
@@ -55,7 +55,7 @@ And configure some loaders for `.purs` and `.css` files:
 
 This plugin uses [purs-loader](https://github.com/fretlink/purs-loader) and [css-loader](https://github.com/webpack-contrib/css-loader) under the hood.
 
-If you need to configure them you can call `PursCSSModulesPlugin.pursLoader` and `PursCSSModulesPlugin.cssLoader` with an object of options accepted by the underlying loaders.
+If you need to configure them you can call `PursCssModulesPlugin.pursLoader` and `PursCssModulesPlugin.cssLoader` with an object of options accepted by the underlying loaders.
 
 ## Usage
 
@@ -115,13 +115,13 @@ import Effect (Effect)
 type ClassNames =
   ( "title" :: String )
 
-foreign import importCSSModule :: Effect (Record ClassNames)
+foreign import importCssModule :: Effect (Record ClassNames)
 ```
 
 This module exports a few bindings:
 
 + `ClassNames` is a [row](https://github.com/purescript/documentation/blob/master/language/Types.md#row-polymorphism) describing the stylesheet local class names.
-+ `importCSSModule` yields a mapping of the stylesheet local class names to their corresponding compiled class names.
++ `importCssModule` yields a mapping of the stylesheet local class names to their corresponding compiled class names.
 
 Let’s use the `title` class declared in `Components/App.css` to style our `h1`. Import the necessary bindings:
 
@@ -129,7 +129,7 @@ Let’s use the `title` class declared in `Components/App.css` to style our `h1`
 # src/Components/App.purs
 
 -import Components.App.CSS
-+import Components.App.CSS (importCSSModule)
++import Components.App.CSS (importCssModule)
 ```
 
 Then replace the definition of `app` with this one:
@@ -138,7 +138,7 @@ Then replace the definition of `app` with this one:
 -- src/Components/App.purs
 
 app :: Effect JSX
-app = importCSSModule <#> \{ title } ->
+app = importCssModule <#> \{ title } ->
   unit # makeStateless component \_ ->
     DOM.h1 { className: title
            , children: [DOM.text "Hello world"] }
@@ -156,7 +156,7 @@ You’ll also need to import `Effect`:
  import React.Basic (Component, JSX, createComponent, makeStateless)
  import React.Basic.DOM as DOM
 
- import Components.App.CSS (importCSSModule)
+ import Components.App.CSS (importCssModule)
 ```
 
 Our component isn’t pure anymore: `app` yields some JSX but in doing so it also appends its stylesheet to the DOM! In production you’ll typically extract the CSS of this component, merge it with others, optimize it and load it ahead of time through a `link` with the help of something like [mini-css-extract-plugin](https://github.com/webpack-contrib/mini-css-extract-plugin).

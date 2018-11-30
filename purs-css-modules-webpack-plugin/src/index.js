@@ -7,7 +7,7 @@ const webpack = require("webpack");
 const pursLoaderUtils = require("purs-loader/utils");
 const utils = require("./utils");
 
-const extractMissingCssModuleErrors = R.compose(
+const extractMissingCssModulesInfos = R.compose(
   R.filter(R.has("cssModule")),
   moduleErr =>
     moduleErr ? moduleErr.error.modules : [],
@@ -32,17 +32,15 @@ const createNormalModule = (compilation, filename) => {
   });
 };
 
-const loadCssModule = (compilation, filename) =>
-  createNormalModule(compilation, filename).then(module => {
-    const loaderContext = module.createLoaderContext(
+const createLoaderContext = (compilation, filename) =>
+  createNormalModule(compilation, filename).then(module =>
+    module.createLoaderContext(
       compilation.resolverFactory
         .get("normal", module.resolveOptions),
       compilation.options,
       compilation,
       compilation.inputFileSystem
-    );
-    return utils.loadCssModule(loaderContext, filename);
-  });
+    ));
 
 const rebuildModule = (compilation, module) =>
   new Promise((resolve, reject) => {
@@ -109,23 +107,15 @@ module.exports = class PursCssModulesPlugin {
     });
 
     compiler.hooks.done.tapPromise(name, catchRebuildErrors(async ({ compilation }) => {
-      const missingCssModuleErrors = extractMissingCssModuleErrors(compilation.errors);
-      if (!missingCssModuleErrors.length) return;
+      const missingCssModulesInfos = extractMissingCssModulesInfos(compilation.errors);
+      if (!missingCssModulesInfos.length) return;
 
-      await Promise.all(missingCssModuleErrors.map(async err => {
-        const { styleSheetPath } = err.cssModule;
-        if (await utils.exists(styleSheetPath)) {
-          await utils.writeCssModule(Object.assign({
-            locals: await loadCssModule(compilation, styleSheetPath),
-          }, err.cssModule));
-        } else {
-          compilation.warnings.push(utils.missingStyleSheetErr({
-            fromModuleName: err.moduleName,
-            styleSheetPath: path.relative(compiler.context, styleSheetPath)
-          }));
-
-          await utils.deleteCssModule(err.cssModule.root);
-        }
+      await Promise.all(missingCssModulesInfos.map(async desc => {
+        const loaderContext = await createLoaderContext(
+          compilation, desc.cssModule.styleSheetPath);
+        return utils.reifyCssModule(loaderContext, desc, warning => {
+          compilation.warnings.push(warning);
+        });
       }));
 
       const pursModules = new Set(compilation.errors
