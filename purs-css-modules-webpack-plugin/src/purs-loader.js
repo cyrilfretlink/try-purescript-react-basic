@@ -90,7 +90,7 @@ module.exports = function (source, ...rest) {
 
         const styleSheetPath = findCssModuleStyleSheet({
           baseModulePath: desc.filename,
-          baseModuleName: desc.name
+          baseModuleName: desc.name,
           namespace
         });
 

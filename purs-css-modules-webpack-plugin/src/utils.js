@@ -125,7 +125,7 @@ const writeCssModule = async ({ root, locals, styleSheetPath, namespace }) => {
   await Promise.all([
     writeFile(dotCssModulePath, ""),
     writeFile(foreignCssModulePath,
-      mkForeignCssModule(path.relative(root, styleSheetPath)));
+      mkForeignCssModule(path.relative(root, styleSheetPath))),
     writeFile(cssModulePath,
       mkCssModule(`${namespace}.CSS`, Object.keys(locals)))
   ]);
