@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { promisify } = require("util");
 
 const R = require("ramda");
 
@@ -50,13 +51,7 @@ const mkCssModule = (name, classes) =>
   foreign import importCssModule :: Effect (Record ClassNames)
 `);
 
-const access = filename =>
-  new Promise((resolve, reject) => {
-    fs.access(filename, err => {
-      if (err) reject(err);
-      else resolve();
-    })
-  });
+const access = promisify(fs.access);
 const exists = filename =>
   access(filename).then(() => true, () => false);
 
@@ -84,20 +79,8 @@ const loadCssModule = (loaderContext, filename) =>
 
 const DOT_PURS_CSS_MODULE = ".purs-css-module";
 
-const mkdir = dirname =>
-  new Promise((resolve, reject) => {
-    fs.mkdir(dirname, err => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
-const writeFile = (filename, content) =>
-  new Promise((resolve, reject) => {
-    fs.writeFile(filename, content, err => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+const mkdir = promisify(fs.mkdir);
+const writeFile = promisify(fs.writeFile);
 const cssModuleConflictErr = ({ root, filename }) => new Error(dedent(`
 Couldn’t overwrite ./${filename} because ./${root} isn’t a CSS module root
 
@@ -133,20 +116,8 @@ const writeCssModule = async ({ base, root, locals, styleSheetPath, namespace })
   ]);
 };
 
-const rm = filename =>
-  new Promise((resolve, reject) => {
-    fs.unlink(filename, err => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
-const rmdir = filename =>
-  new Promise((resolve, reject) => {
-    fs.rmdir(filename, err => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+const rm = promisify(fs.unlink);
+const rmdir = promisify(fs.rmdir);
 const deleteCssModule = async root => {
   if (await exists(path.join(root, DOT_PURS_CSS_MODULE))) {
     await Promise.all([".purs-css-module", "CSS.js", "CSS.purs"]
