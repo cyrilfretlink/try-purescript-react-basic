@@ -99,14 +99,14 @@ const writeFile = (filename, content) =>
       else resolve();
     });
   });
-exports.writeCSSModule = async ({ dest, locals, styleSheetPath, ownerModuleName }) => {
-  await access(dest).catch(() => mkdir(dest));
+exports.writeCSSModule = async ({ root, locals, styleSheetPath, namespace }) => {
+  await access(root).catch(() => mkdir(root));
 
-  await writeFile(path.join(dest, ".purs-css-module"), "");
-  await writeFile(path.join(dest, "CSS.js"),
-    mkForeignCSSModule(path.relative(dest, styleSheetPath)));
-  await writeFile(path.join(dest, "CSS.purs"),
-    mkCSSModule(`${ownerModuleName}.CSS`, Object.keys(locals)));
+  await writeFile(path.join(root, ".purs-css-module"), "");
+  await writeFile(path.join(root, "CSS.js"),
+    mkForeignCSSModule(path.relative(root, styleSheetPath)));
+  await writeFile(path.join(root, "CSS.purs"),
+    mkCSSModule(`${namespace}.CSS`, Object.keys(locals)));
 };
 
 const rm = filename =>
@@ -123,12 +123,12 @@ const rmdir = filename =>
       else resolve();
     });
   });
-exports.deleteCSSModule = async dirname => {
-  if (await exists(path.join(dirname, ".purs-css-module"))) {
+exports.deleteCSSModule = async root => {
+  if (await exists(path.join(root, ".purs-css-module"))) {
     for (const filename of [".purs-css-module", "CSS.js", "CSS.purs"]) {
-      await rm(path.join(dirname, filename));
+      await rm(path.join(root, filename));
     }
-    await rmdir(dirname).catch(notEmptyErr => {});
+    await rmdir(root).catch(notEmptyErr => {});
   }
 };
 

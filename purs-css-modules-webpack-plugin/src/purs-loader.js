@@ -9,34 +9,38 @@ const utils = require("./utils");
 
 const libs = [/bower_components/, /\.psc-package/];
 
-const extractCSSModulesImports = source => {
+const extractCssModulesImports = source => {
   const imports = [];
 
-  let matchedCSSModuleImport;
-  const matchCSSModuleImport = /^\s*(?<!--)\s*import\s*(((?:\w+\.)*\w+)\.CSS)/mg;
-  while (matchedCSSModuleImport = matchCSSModuleImport.exec(source)) {
-    const [, cssModuleName, ownerModuleName] = matchedCSSModuleImport;
-    imports.push({ cssModuleName, ownerModuleName });
+  let matchedCssModuleImport;
+  const matchCssModuleImport = /^\s*(?<!--)\s*import\s*((?:\w+\.)*\w+)\.CSS/mg;
+  while (matchedCssModuleImport = matchCssModuleImport.exec(source)) {
+    const [, namespace] = matchedCssModuleImport;
+    imports.push({ namespace });
   }
 
-  return R.uniqBy(R.prop('cssModuleName'), imports);
+  return R.uniqBy(R.prop('namespace'), imports);
 };
 
 const withExtname = (ext, filename) =>
   path.join(path.dirname(filename),
     path.basename(filename, path.extname(filename)) + ext);
 
-const findCSSModuleStyleSheet = ({ baseModulePath, baseModuleName, ownerModuleName }) => {
+const findCssModuleStyleSheet = ({ baseModulePath, baseModuleName, namespace }) => {
   const baseModuleDir = path.dirname(baseModulePath);
   const styleSheetName = path.basename(baseModulePath, path.extname(baseModulePath));
-  return ownerModuleName === baseModuleName
+  return namespace === baseModuleName
     ? path.join(baseModuleDir, `${styleSheetName}.css`)
     : withExtname(".css", pursLoaderUtils.resolvePursModule({
         baseModulePath,
         baseModuleName,
-        targetModuleName: ownerModuleName,
+        targetModuleName: namespace,
       }));
 };
+
+const findCssModuleRoot = styleSheetPath =>
+  path.join(path.dirname(styleSheetPath),
+    path.basename(styleSheetPath, path.extname(styleSheetPath)));
 
 module.exports = function (source, ...rest) {
   if (this.cacheable) this.cacheable();
@@ -47,7 +51,7 @@ module.exports = function (source, ...rest) {
 
   const callback = this.async();
 
-  if (!this.pursCSSModulesLocals) {
+  if (!this.pursCssModulesLocals) {
     return callback(utils.missingPluginErr);
   }
 
@@ -58,53 +62,56 @@ module.exports = function (source, ...rest) {
 
   if (!pursModuleName) return pursLoader.call(this, source, ...rest);
 
-  const imports = extractCSSModulesImports(source);
-  Promise.all(imports.map(async ({ ownerModuleName }) => {
-    const styleSheetPath = findCSSModuleStyleSheet({
+  const imports = extractCssModulesImports(source);
+  Promise.all(imports.map(async ({ namespace }) => {
+    const styleSheetPath = findCssModuleStyleSheet({
       baseModulePath: this.resourcePath,
       baseModuleName: pursModuleName,
-      ownerModuleName
+      namespace
     })
+    const cssModuleRoot = findCssModuleRoot(styleSheetPath);
 
     this.addDependency(styleSheetPath);
 
     if (await utils.exists(styleSheetPath)) {
-      const cssModuleDir = path.join(path.dirname(styleSheetPath),
-        path.basename(styleSheetPath, path.extname(styleSheetPath)));
-
-      await utils.writeCSSModule({
-        dest: cssModuleDir,
-        locals: await utils.loadCSSModule(this, styleSheetPath),
+      await utils.writeCssModule({
+        root: cssModuleRoot,
+        locals: await utils.loadCssModule(this, styleSheetPath),
         stylesheetPath,
-        ownerModuleName
+        namespace
       });
-
     } else {
       this.emitWarning(utils.missingStyleSheetErr({
         fromModuleName: pursModuleName,
         styleSheetPath: path.relative(this.rootContext, styleSheetPath)
       }));
 
-      await utils.deleteCSSModule(cssModuleDir);
+      await utils.deleteCssModule(cssModuleRoot);
     }
   })).then(() => {
     const context = Object.preventExtensions(Object.assign(Object.create(this), {
-      extractDependenciesOnError: error => {
-        const [, pursModuleName] = pursLoaderUtils.matchErrModuleName.exec(error) || [];
-        const [, pursModulePath] = pursLoaderUtils.matchErrLocation.exec(error) || [];
+      describePscError: (error, info) => {
+        const matchMissingCssModuleName = /Module ((?:\w+\.)*\w+)\.CSS was not found/;
+        const [, namespace] = matchMissingCssModuleName.exec(error) || [];
 
-        const matchMissingCSSModuleName = /Module ((?:\w+\.)*\w+)\.CSS was not found/;
-        const [, ownerModuleName] = matchMissingCSSModuleName.exec(error) || [];
+        if (!namespace) return {};
 
-        if (!pursModuleName || !pursModulePath || !ownerModuleName) return [];
-
-        const styleSheetPath = findCSSModuleStyleSheet({
-          baseModulePath: pursModulePath,
-          baseModuleName: pursModuleName
-          ownerModuleName
+        const styleSheetPath = findCssModuleStyleSheet({
+          baseModulePath: info.filename,
+          baseModuleName: info.name
+          namespace
         });
 
-        return [path.join(this.rootContext, styleSheetPath)];
+        return {
+          dependencies: [path.join(this.rootContext, styleSheetPath)],
+          details: {
+            cssModule: {
+              root: findCssModuleRoot(styleSheetPath),
+              namespace,
+              stylesheetPath
+            }
+          }
+        };
       }
     }));
 

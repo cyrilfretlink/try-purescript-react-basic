@@ -13,7 +13,7 @@ const invalidCamelCaseOptionMsg = value => `
   CSS Loader "camelCase" option should be set to "only" (was ${JSON.stringify(value)}) in order to sanitize otherwise invalid class names
 `;
 
-const parseCSSModuleLocals = content => {
+const parseCssModuleLocals = content => {
   const match = content.match(/exports\.locals\s*=\s*([^;]+)/);
   return match && JSON.parse(match[1]);
 };
@@ -24,7 +24,7 @@ module.exports = function () {
   const callback = this.async();
   const options = loaderUtils.getOptions(this)
 
-  if (!this.pursCSSModulesLocals) {
+  if (!this.pursCssModulesLocals) {
     return callback(utils.missingPluginErr);
   }
 
@@ -40,8 +40,8 @@ module.exports = function () {
     if (err) return callback(err);
 
     try {
-      this.pursCSSModulesLocals.set(this.resourcePath,
-        parseCSSModuleLocals(content) || {});
+      this.pursCssModulesLocals.set(this.resourcePath,
+        parseCssModuleLocals(content) || {});
     } catch (parseErr) {
       return callback(parseErr);
     }

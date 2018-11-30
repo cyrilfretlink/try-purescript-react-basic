@@ -7,15 +7,19 @@ const webpack = require("webpack");
 const pursLoaderUtils = require("purs-loader/utils");
 const utils = require("./utils");
 
-const matchCSSModuleName = /Module (((?:\w+\.)*\w+)\.CSS) was not found/;
+const extractMissingCssModuleErrors = R.compose(
+  R.filter(R.has("cssModule")),
+  moduleErr =>
+    moduleErr ? moduleErr.error.modules : [],
+  R.find(moduleErr =>
+    R.is(pursLoaderUtils.PscError, moduleErr.error)));
 
-const catchRebuildErrors = f => stats => {
-  return f(stats).catch(error => {
+const catchRebuildErrors = f => stats =>
+  f(stats).catch(error => {
     if (!stats.compilation.errors.includes(error)) {
       stats.compilation.errors.push(error);
     }
   });
-};
 
 const createNormalModule = (compilation, filename) => {
   const entry = webpack.SingleEntryPlugin.createDependency(filename);
@@ -28,7 +32,7 @@ const createNormalModule = (compilation, filename) => {
   });
 };
 
-const loadCSSModule = (compilation, filename) =>
+const loadCssModule = (compilation, filename) =>
   createNormalModule(compilation, filename).then(module => {
     const loaderContext = module.createLoaderContext(
       compilation.resolverFactory
@@ -37,7 +41,7 @@ const loadCSSModule = (compilation, filename) =>
       compilation,
       compilation.inputFileSystem
     );
-    return utils.loadCSSModule(loaderContext, filename);
+    return utils.loadCssModule(loaderContext, filename);
   });
 
 const rebuildModule = (compilation, module) =>
@@ -64,7 +68,7 @@ const afterCompile = (compiler, compilation) =>
     });
   });
 
-module.exports = class PursCSSModulesPlugin {
+module.exports = class PursCssModulesPlugin {
   constructor() {
     this.locals = new Map();
   }
@@ -91,7 +95,7 @@ module.exports = class PursCSSModulesPlugin {
 
     compiler.hooks.thisCompilation.tap(name, (compilation, params) => {
       compilation.hooks.normalModuleLoader.tap(name, (context, module) => {
-        context.pursCSSModulesLocals = this.locals;
+        context.pursCssModulesLocals = this.locals;
         context.emitWarningOnce = message => {
           const { requestShortener }  = compilation.runtimeTemplate;
           const currentLoader = module.getCurrentLoader(context);
@@ -104,73 +108,23 @@ module.exports = class PursCSSModulesPlugin {
       });
     });
 
-    compiler.hooks.shouldEmit.tap(name, compilation => {
-      if (compilation.errors.length > 0) {
-        const psMainModuleErr = compilation.errors
-          .find(moduleErr => moduleErr.error.psMainModule);
-        this.missingCSSModuleErrors = R.compose(
-          R.filter(error => !psMainModuleErr ||
-            error.moduleName !== psMainModuleErr.error.psMainModule),
-          R.uniqWith((a, b) => (
-            a.filename === b.filename &&
-            a.moduleName === b.moduleName &&
-            a.cssModule.name === b.cssModule.name
-          )),
-          R.map(pscMessage => {
-            const [, filename] = pursLoaderUtils.matchErrLocation.exec(pscMessage);
-            const psModuleDir = path.dirname(filename);
-            const psModuleBase = path.basename(filename, path.extname(filename));
-            const [, moduleName] = pursLoaderUtils.matchErrModuleName.exec(pscMessage);
-            const [, cssModuleName, cssModuleParentName] = matchCSSModuleName.exec(pscMessage);
-            const cssModuleFilename = cssModuleParentName === moduleName
-              ? path.join(compiler.context, psModuleDir, `${psModuleBase}.css`)
-              : withExtname(".css", pursLoaderUtils.resolvePursModule({
-                  baseModulePath: path.join(compiler.context, filename),
-                  baseModuleName: moduleName,
-                  targetModuleName: cssModuleParentName,
-                }));
-            const cssModuleDir = path.dirname(cssModuleFilename);
-            const cssModuleBase = path.basename(cssModuleFilename, path.extname(cssModuleFilename));
-            return {
-              filename,
-              moduleName,
-              cssModule: {
-                out: path.join(cssModuleDir, cssModuleBase),
-                name: cssModuleName,
-                filename: cssModuleFilename,
-              }
-            }
-          }),
-          R.filter(R.test(matchCSSModuleName)),
-          R.chain(pursLoaderUtils.splitPscErrors),
-          R.filter(R.is(String))
-        )(compilation.errors);
-
-        return !this.missingCSSModuleErrors.some(err => err.cssModule.exists);
-      } else {
-        this.missingCSSModuleErrors = [];
-      }
-    });
-
     compiler.hooks.done.tapPromise(name, catchRebuildErrors(async ({ compilation }) => {
-      const missingCSSModuleErrors = ƒ(compilation.errors); // TODO
-      if (!missingCSSModuleErrors.length) return;
+      const missingCssModuleErrors = extractMissingCssModuleErrors(compilation.errors);
+      if (!missingCssModuleErrors.length) return;
 
-      await Promise.all(missingCSSModuleErrors.map(async err => {
-        if (await utils.exists(err.cssModule.filename)) {
-          await utils.writeCSSModule({
-            dest: err.cssModule.out,
-            locals: await loadCSSModule(compilation, err.cssModule.filename),
-            stylesheetPath: err.cssModule.filename,
-            ownerModuleName: err.cssModule.owner // FIXME
-          });
+      await Promise.all(missingCssModuleErrors.map(async err => {
+        const { styleSheetPath } = err.cssModule;
+        if (await utils.exists(styleSheetPath)) {
+          await utils.writeCssModule(Object.assign({
+            locals: await loadCssModule(compilation, styleSheetPath),
+          }, err.cssModule));
         } else {
           compilation.warnings.push(utils.missingStyleSheetErr({
             fromModuleName: err.moduleName,
-            styleSheetPath: path.relative(compiler.context, err.cssModule.filename)
+            styleSheetPath: path.relative(compiler.context, styleSheetPath)
           }));
 
-          await utils.deleteCSSModule(err.cssModule.out);
+          await utils.deleteCssModule(err.cssModule.root);
         }
       }));
 
@@ -179,9 +133,9 @@ module.exports = class PursCSSModulesPlugin {
           /\.purs$/.test(error.module.resource))
         .map(error => error.module));
 
-      compilation.errors = compilation.errors.filter(err =>
-        typeof err === "string" ? !pursLoaderUtils.isPscMessage(err) :
-          !pursModules.has(err.module));
+      compilation.errors = compilation.errors.filter(moduleErr =>
+        !R.is(pursLoaderUtils.PscError, moduleErr.error) &&
+        !pursModules.has(moduleErr.module));
 
       compilation.unseal();
 
