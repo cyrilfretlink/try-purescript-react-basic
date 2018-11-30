@@ -4,8 +4,8 @@ const path = require("path");
 const pursLoader = require("purs-loader");
 const R = require("ramda");
 
-const pursLoaderUtils = require("purs-loader/utils");
-const utils = require("./utils");
+const { resolvePursModule } = require("purs-loader/utils");
+const { missingPluginErr, reifyCssModule } = require("./utils");
 
 const libs = [/bower_components/, /\.psc-package/];
 
@@ -31,7 +31,7 @@ const findCssModuleStyleSheet = ({ baseModulePath, baseModuleName, namespace }) 
   const styleSheetName = path.basename(baseModulePath, path.extname(baseModulePath));
   return namespace === baseModuleName
     ? path.join(baseModuleDir, `${styleSheetName}.css`)
-    : withExtname(".css", pursLoaderUtils.resolvePursModule({
+    : withExtname(".css", resolvePursModule({
         baseModulePath,
         baseModuleName,
         targetModuleName: namespace,
@@ -52,7 +52,7 @@ module.exports = function (source, ...rest) {
   const callback = this.async();
 
   if (!this.pursCssModulesLocals) {
-    return callback(utils.missingPluginErr);
+    return callback(missingPluginErr);
   }
 
   this.async = () => callback;
@@ -72,7 +72,7 @@ module.exports = function (source, ...rest) {
 
     this.addDependency(styleSheetPath);
 
-    return utils.reifyCssModule(this, {
+    return reifyCssModule(this, {
       name: pursModuleName,
       cssModule: {
         root: findCssModuleRoot(styleSheetPath),
@@ -100,7 +100,7 @@ module.exports = function (source, ...rest) {
             cssModule: {
               root: findCssModuleRoot(styleSheetPath),
               namespace,
-              stylesheetPath
+              styleSheetPath
             }
           }
         };

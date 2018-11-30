@@ -98,16 +98,12 @@ const writeFile = (filename, content) =>
       else resolve();
     });
   });
-const cssModuleConflictErr = ({ root, filename }) => {
-  const dotCssModulePath = path.join(root, DOT_PURS_CSS_MODULE);
-  const dependencies = [dotCssModulePath, filename];
-  return Object.assign(new Error(dedent(`
-    Couldn’t overwrite ${filename} because ${root} isn’t a CSS module root
+const cssModuleConflictErr = ({ root, filename }) => new Error(dedent(`
+Couldn’t overwrite ./${filename} because ./${root} isn’t a CSS module root
 
-      Create a file ${dotCssModulePath} to turn ${root} into a CSS module root and overwrite ${filename} or rename ${filename}.
-  `.trimLeft())), { dependencies });
-};
-const writeCssModule = async ({ root, locals, styleSheetPath, namespace }) => {
+   Create a file ./${path.join(root, DOT_PURS_CSS_MODULE)} to turn ./${root} into a CSS module root and overwrite ./${filename} or rename ./${filename}
+`.trimLeft()));
+const writeCssModule = async ({ base, root, locals, styleSheetPath, namespace }) => {
   const dotCssModulePath = path.join(root, DOT_PURS_CSS_MODULE);
   const foreignCssModulePath = path.join(root, "CSS.js");
   const cssModulePath = path.join(root, "CSS.purs");
@@ -115,7 +111,13 @@ const writeCssModule = async ({ root, locals, styleSheetPath, namespace }) => {
   if (await exists(root)) {
     if (!(await exists(dotCssModulePath))) {
       for (const filename of [foreignCssModulePath, cssModulePath]) {
-        if (exists(filename)) throw cssModuleConflictErr({ filename, root });
+        if (exists(filename)) {
+          const dependencies = [path.join(root, DOT_PURS_CSS_MODULE), filename];
+          throw Object.assign(cssModuleConflictErr({
+            filename: path.relative(base, filename),
+            root: path.relative(base, root)
+          }), { dependencies });
+        }
       }
     }
   } else {
@@ -162,6 +164,7 @@ exports.reifyCssModule = async (loaderContext, desc, onWarning) => {
   if (await exists(styleSheetPath)) {
     try {
       await writeCssModule(Object.assign({
+        base: loaderContext.rootContext,
         locals: await loadCssModule(
           loaderContext, styleSheetPath)
       }, desc.cssModule));

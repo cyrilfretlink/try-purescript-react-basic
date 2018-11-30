@@ -4,21 +4,19 @@ const path = require("path");
 const R = require("ramda");
 const webpack = require("webpack");
 
-const pursLoaderUtils = require("purs-loader/utils");
-const utils = require("./utils");
+const { PscError } = require("purs-loader/utils");
+const { reifyCssModule } = require("./utils");
 
-const extractMissingCssModulesInfos = R.compose(
+const findMissingCssModules = R.compose(
   R.filter(R.has("cssModule")),
   moduleErr =>
     moduleErr ? moduleErr.error.modules : [],
   R.find(moduleErr =>
-    R.is(pursLoaderUtils.PscError, moduleErr.error)));
+    R.is(PscError, moduleErr.error)));
 
 const catchRebuildErrors = f => stats =>
   f(stats).catch(error => {
-    if (!stats.compilation.errors.includes(error)) {
-      stats.compilation.errors.push(error);
-    }
+    stats.compilation.errors.push(error);
   });
 
 const createNormalModule = (compilation, filename) => {
@@ -83,7 +81,6 @@ module.exports = class PursCssModulesPlugin {
       loader: path.join(__dirname, "css-loader"),
       options: Object.assign({
         modules: true,
-        camelCase: "only"
       }, options)
     };
   }
@@ -94,26 +91,17 @@ module.exports = class PursCssModulesPlugin {
     compiler.hooks.thisCompilation.tap(name, (compilation, params) => {
       compilation.hooks.normalModuleLoader.tap(name, (context, module) => {
         context.pursCssModulesLocals = this.locals;
-        context.emitWarningOnce = message => {
-          const { requestShortener }  = compilation.runtimeTemplate;
-          const currentLoader = module.getCurrentLoader(context);
-          const from = requestShortener.shorten(currentLoader.loader);
-          const warning = [from, message].join("\n");
-          if (!compilation.warnings.includes(warning)) {
-            compilation.warnings.push(warning);
-          }
-        };
       });
     });
 
     compiler.hooks.done.tapPromise(name, catchRebuildErrors(async ({ compilation }) => {
-      const missingCssModulesInfos = extractMissingCssModulesInfos(compilation.errors);
-      if (!missingCssModulesInfos.length) return;
+      const missingCssModules = findMissingCssModules(compilation.errors);
+      if (!missingCssModules.length) return;
 
-      await Promise.all(missingCssModulesInfos.map(async desc => {
+      await Promise.all(missingCssModules.map(async desc => {
         const loaderContext = await createLoaderContext(
           compilation, desc.cssModule.styleSheetPath);
-        return utils.reifyCssModule(loaderContext, desc, warning => {
+        return reifyCssModule(loaderContext, desc, warning => {
           compilation.warnings.push(warning);
         });
       }));
@@ -124,7 +112,7 @@ module.exports = class PursCssModulesPlugin {
         .map(error => error.module));
 
       compilation.errors = compilation.errors.filter(moduleErr =>
-        !R.is(pursLoaderUtils.PscError, moduleErr.error) &&
+        !R.is(PscError, moduleErr.error) &&
         !pursModules.has(moduleErr.module));
 
       compilation.unseal();
